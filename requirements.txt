@@ -2,10 +2,11 @@
 
 https://github.com/vasusen-code/Telethon/archive/refs/tags/v1.24.0.zip
 https://github.com/vasusen-code/ethon/archive/refs/tags/v0.1.5.zip
-cryptg
+cryptography==37.0.4
 tgcrypto
 pyrogram
 python-decouple
 Flask==2.2.5
 gunicorn==21.2.0
 aiohttp==3.8.5
+

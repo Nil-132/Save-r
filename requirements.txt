@@ -1,6 +1,6 @@
 #Github.com-Vasusen-code
 
-https://github.com/vasusen-code/Telethon/archive/refs/tags/v1.24.0.zip
+git+https://github.com/vasusen-code/Telethon.git@v1.24.0
 https://github.com/vasusen-code/ethon/archive/refs/tags/v0.1.5.zip
 #cryptg
 tgcrypto

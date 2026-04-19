@@ -1,4 +1,4 @@
-#Github.com/Vasusen-code - FINAL STABLE VERSION FOR RENDER
+#Github.com/Vasusen-code - FINAL WORKING VERSION FOR RENDER
 
 print("🚀 main/__init__.py is being executed by Render!")
 
@@ -10,7 +10,7 @@ from decouple import config
 
 print("✅ All imports successful")
 
-# Define 'bot' early so main/__main__.py can import it
+# Define 'bot' at module level so main/__main__.py can import it
 bot = None
 
 # Load environment variables
@@ -27,7 +27,7 @@ except Exception as e:
     print(f"❌ ERROR loading environment variables: {e}")
     sys.exit(1)
 
-# Telethon Bot (with flood wait handling)
+# Telethon Bot
 async def start_telethon_bot():
     print("🔄 Starting Telethon Bot...")
     global bot

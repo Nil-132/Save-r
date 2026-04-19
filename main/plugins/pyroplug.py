@@ -1,12 +1,12 @@
-#Github.com/Vasusen-code - FIXED FOR CHAT_ID_INVALID ERROR
+#Github.com/Vasusen-code - CLEAN FINAL VERSION
 
-import time, os
+import asyncio, time, os
 
 from .. import bot as Drone
 from main.plugins.progress import progress_for_pyrogram
 from main.plugins.helpers import screenshot
 
-from pyrogram import Client
+from pyrogram import Client, filters
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid, UserNotParticipant
 from pyrogram.enums import MessageMediaType
 from ethon.pyfunc import video_metadata
@@ -14,7 +14,10 @@ from ethon.telefunc import fast_upload
 from telethon.tl.types import DocumentAttributeVideo
 
 def thumbnail(sender):
-    return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
+    if os.path.exists(f'{sender}.jpg'):
+        return f'{sender}.jpg'
+    else:
+        return None
 
 async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
     if "?single" in msg_link:
@@ -36,8 +39,8 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
 
     try:
         if is_private:
-            # ← THIS LINE FIXES CHAT_ID_INVALID
-            await userbot.get_chat(chat)      # Forces Telegram to cache the peer ID
+            # Force resolve peer for private channels (fixes "Peer id invalid")
+            await userbot.get_chat(chat)
             await userbot.copy_message(sender, chat, msg_id)
         else:
             await client.copy_message(sender, chat, msg_id)
@@ -46,13 +49,10 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         return
 
     except Exception as e:
-        error_str = str(e)
-        print(f"Real error for {msg_link}: {error_str}")
-        
+        print(f"Real error while saving {msg_link}: {e}")
         await client.edit_message_text(sender, edit_id, 
-            f'Failed to save: `{msg_link}`\n\n'
-            f'Error: {error_str}\n\n'
-            'Make sure your userbot account has **opened** this group/channel at least once.'
+            f'Failed to save: `{msg_link}`\n\nError: {str(e)}\n\n'
+            'Make sure your userbot account is joined to the channel/group.'
         )
 
 async def get_bulk_msg(userbot, client, sender, msg_link, i):

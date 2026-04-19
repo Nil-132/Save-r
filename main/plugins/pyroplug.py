@@ -1,4 +1,4 @@
-#Github.com/Vasusen-code - FIXED FOR PRIVATE CHANNELS
+#Github.com/Vasusen-code - FIXED FOR PRIVATE CHANNELS (Error fixed)
 
 import asyncio, time, os
 
@@ -29,7 +29,6 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
     
     msg_id = int(msg_link.split("/")[-1]) + int(i)
 
-    # Detect private vs public
     is_private = 't.me/c/' in msg_link or 't.me/b/' in msg_link
 
     if is_private:
@@ -42,11 +41,10 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
 
     edit = await client.edit_message_text(sender, edit_id, "Cloning...")
 
-    # ==================== PRIVATE CHANNEL FIX ====================
+    # PRIVATE CHANNELS - Force peer resolution + copy
     if is_private:
         try:
-            # FORCE peer resolution (this caches the ID in session)
-            await userbot.get_chat(chat)
+            await userbot.get_chat(chat)          # This caches the peer ID
             print(f"✅ Peer resolved for private chat: {chat}")
             await userbot.copy_message(sender, chat, msg_id)
             await edit.delete()
@@ -54,17 +52,18 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         except Exception as e:
             print(f"Private copy failed: {e}")
 
-    # Public channels or fallback
+    # PUBLIC CHANNELS or fallback
     try:
         await client.copy_message(sender, chat, msg_id)
         await edit.delete()
         return
     except Exception as e:
-        print(f"Public/fallback copy failed: {e}")
+        print(f"Copy failed: {e}")
 
-    # Final error message
+    # Final safe error message (fixed - no more 'e' reference error)
+    error_msg = str(e) if 'e' in locals() else "Unknown error"
     await client.edit_message_text(sender, edit_id, 
-        f'Failed to save: `{msg_link}`\n\nError: {str(e)}\n\n'
+        f'Failed to save: `{msg_link}`\n\nError: {error_msg}\n\n'
         'Make sure your userbot account is joined to the channel/group.'
     )
 

@@ -1,4 +1,4 @@
-#Github.com/Vasusen-code - FIXED & STABLE VERSION
+#Github.com/Vasusen-code - FINAL STABLE VERSION
 
 print("🚀 main/__init__.py is being executed by Render!")
 
@@ -24,7 +24,7 @@ except Exception as e:
     print(f"❌ ERROR loading environment variables: {e}")
     sys.exit(1)
 
-# Telethon Bot (with flood wait handling) - this is the 'bot' variable that __main__.py expects
+# Telethon Bot (this 'bot' variable is required by main/__main__.py)
 async def start_telethon_bot():
     print("🔄 Starting Telethon Bot...")
     bot = TelegramClient('bot', API_ID, API_HASH)

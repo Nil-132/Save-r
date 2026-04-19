@@ -34,31 +34,46 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
     msg_id = int(msg_link.split("/")[-1]) + int(i)
     height, width, duration, thumb_path = 90, 90, 0, None
 
-    # Fixed link parsing - handles both username links and t.me/c/ or t.me/b/ links
+    # FIXED: Proper parsing for username links, t.me/c/, t.me/b/
     if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
         if 't.me/b/' in msg_link:
-            chat = str(msg_link.split("/")[-2])          # username for b/ links
+            chat = str(msg_link.split("/")[-2])
         else:
-            chat = int('-100' + str(msg_link.split("/")[-2]))  # numeric ID for c/ links
+            chat = int('-100' + str(msg_link.split("/")[-2]))
     else:
-        # Public channel with username (t.me/username/123)
+        # Public channel with username (t.me/nimisha_bansal_yes_officer/16810)
         chat = msg_link.split("t.me")[1].split("/")[1]
 
     file = ""
     try:
         msg = await userbot.get_messages(chat, msg_id)
-        if msg.media:
-            if msg.media == MessageMediaType.WEB_PAGE:
-                edit = await client.edit_message_text(sender, edit_id, "Cloning.")
-                await client.send_message(sender, msg.text.markdown)
-                await edit.delete()
-                return
+
+        # Debug info (you can remove these prints later)
+        print(f"DEBUG: Fetched message {msg_id} from {chat} | Media type: {msg.media}")
+
+        if msg.empty:
+            new_link = f't.me/b/{chat}/{msg_id}'
+            return await get_msg(userbot, client, bot, sender, edit_id, new_link, i)
+
+        # Handle text-only messages
+        if msg.text and not msg.media:
+            edit = await client.edit_message_text(sender, edit_id, "Cloning.")
+            await client.send_message(sender, msg.text.markdown)
+            await edit.delete()
+            return
+
+        # Handle web page links
+        if msg.media == MessageMediaType.WEB_PAGE:
+            edit = await client.edit_message_text(sender, edit_id, "Cloning.")
+            await client.send_message(sender, msg.text.markdown)
+            await edit.delete()
+            return
+
+        # If we reach here, there should be media
         if not msg.media:
-            if msg.text:
-                edit = await client.edit_message_text(sender, edit_id, "Cloning.")
-                await client.send_message(sender, msg.text.markdown)
-                await edit.delete()
-                return
+            await client.edit_message_text(sender, edit_id, "This message doesn't contain any downloadable media.")
+            return
+
         edit = await client.edit_message_text(sender, edit_id, "Trying to Download.")
         file = await userbot.download_media(
             msg,
@@ -72,79 +87,68 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         )
         print(file)
         await edit.edit('Preparing to Upload!')
-        caption = None
-        if msg.caption is not None:
-            caption = msg.caption
+        caption = msg.caption if msg.caption else None
+
+        # Video Note
         if msg.media == MessageMediaType.VIDEO_NOTE:
             round_message = True
-            print("Trying to get metadata")
             data = video_metadata(file)
             height, width, duration = data["height"], data["width"], data["duration"]
-            print(f'd: {duration}, w: {width}, h:{height}')
             try:
                 thumb_path = await screenshot(file, duration, sender)
-            except Exception:
+            except:
                 thumb_path = None
             await client.send_video_note(
                 chat_id=sender,
                 video_note=file,
-                length=height, duration=duration, 
+                length=height, duration=duration,
                 thumb=thumb_path,
                 progress=progress_for_pyrogram,
-                progress_args=(
-                    client,
-                    '**UPLOADING:**\n',
-                    edit,
-                    time.time()
-                )
+                progress_args=(client, '**UPLOADING:**\n', edit, time.time())
             )
-        elif msg.media == MessageMediaType.VIDEO and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
-            print("Trying to get metadata")
+
+        # Regular Video
+        elif msg.media == MessageMediaType.VIDEO:
             data = video_metadata(file)
             height, width, duration = data["height"], data["width"], data["duration"]
-            print(f'd: {duration}, w: {width}, h:{height}')
             try:
                 thumb_path = await screenshot(file, duration, sender)
-            except Exception:
+            except:
                 thumb_path = None
             await client.send_video(
                 chat_id=sender,
                 video=file,
                 caption=caption,
                 supports_streaming=True,
-                height=height, width=width, duration=duration, 
+                height=height, width=width, duration=duration,
                 thumb=thumb_path,
                 progress=progress_for_pyrogram,
-                progress_args=(
-                    client,
-                    '**UPLOADING:**\n',
-                    edit,
-                    time.time()
-                )
+                progress_args=(client, '**UPLOADING:**\n', edit, time.time())
             )
+
+        # Photo
         elif msg.media == MessageMediaType.PHOTO:
             await edit.edit("Uploading photo.")
             await bot.send_file(sender, file, caption=caption)
+
+        # Everything else (document, audio, etc.)
         else:
             thumb_path = thumbnail(sender)
             await client.send_document(
                 sender,
-                file, 
+                file,
                 caption=caption,
                 thumb=thumb_path,
                 progress=progress_for_pyrogram,
-                progress_args=(
-                    client,
-                    '**UPLOADING:**\n',
-                    edit,
-                    time.time()
-                )
+                progress_args=(client, '**UPLOADING:**\n', edit, time.time())
             )
+
+        # Cleanup
         try:
             os.remove(file)
             if os.path.isfile(file):
                 os.remove(file)
-        except Exception:
+        except:
             pass
         await edit.delete()
 
@@ -161,27 +165,15 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         return await get_msg(userbot, client, bot, sender, edit_id, new_link, i)
 
     except Exception as e:
-        print(e)
-        if "messages.SendMedia" in str(e) or "SaveBigFilePartRequest" in str(e) or "SendMediaRequest" in str(e) or str(e) == "File size equals to 0 B":
-            try:
-                UT = time.time()
-                uploader = await fast_upload(f'{file}', f'{file}', UT, bot, edit, '**UPLOADING:**')
-                if msg.media == MessageMediaType.VIDEO or msg.media == MessageMediaType.VIDEO_NOTE:
-                    attributes = [DocumentAttributeVideo(duration=duration, w=width, h=height, round_message=round_message, supports_streaming=True)]
-                    await bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, attributes=attributes, force_document=False)
-                else:
-                    await bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, force_document=True)
-                if os.path.isfile(file):
-                    os.remove(file)
-            except Exception as e:
-                print(e)
-                await client.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
-                try:
-                    os.remove(file)
-                except:
-                    pass
-                return
-        else:
+        print(f"ERROR in get_msg: {e}")
+        # Fallback: Try copy_message (works for most public videos)
+        try:
+            edit = await client.edit_message_text(sender, edit_id, "Trying fallback copy...")
+            await client.copy_message(sender, chat, msg_id)
+            await edit.delete()
+            return
+        except Exception as fallback_error:
+            print(f"Fallback also failed: {fallback_error}")
             await client.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
             try:
                 os.remove(file)

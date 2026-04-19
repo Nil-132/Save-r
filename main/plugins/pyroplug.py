@@ -1,4 +1,4 @@
-#Github.com/Vasusen-code - FIXED FOR PRIVATE CHANNELS (Error fixed)
+#Github.com/Vasusen-code - CLEAN FINAL VERSION
 
 import asyncio, time, os
 
@@ -20,10 +20,6 @@ def thumbnail(sender):
         return None
 
 async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
-    """ userbot: PyrogramUserBot
-    client: PyrogramBotClient
-    bot: TelethonBotClient """
-    
     if "?single" in msg_link:
         msg_link = msg_link.split("?single")[0]
     
@@ -41,31 +37,23 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
 
     edit = await client.edit_message_text(sender, edit_id, "Cloning...")
 
-    # PRIVATE CHANNELS - Force peer resolution + copy
-    if is_private:
-        try:
-            await userbot.get_chat(chat)          # This caches the peer ID
-            print(f"✅ Peer resolved for private chat: {chat}")
-            await userbot.copy_message(sender, chat, msg_id)
-            await edit.delete()
-            return
-        except Exception as e:
-            print(f"Private copy failed: {e}")
-
-    # PUBLIC CHANNELS or fallback
     try:
-        await client.copy_message(sender, chat, msg_id)
+        if is_private:
+            # Force resolve peer for private channels (fixes "Peer id invalid")
+            await userbot.get_chat(chat)
+            await userbot.copy_message(sender, chat, msg_id)
+        else:
+            await client.copy_message(sender, chat, msg_id)
+        
         await edit.delete()
         return
-    except Exception as e:
-        print(f"Copy failed: {e}")
 
-    # Final safe error message (fixed - no more 'e' reference error)
-    error_msg = str(e) if 'e' in locals() else "Unknown error"
-    await client.edit_message_text(sender, edit_id, 
-        f'Failed to save: `{msg_link}`\n\nError: {error_msg}\n\n'
-        'Make sure your userbot account is joined to the channel/group.'
-    )
+    except Exception as e:
+        print(f"Real error while saving {msg_link}: {e}")
+        await client.edit_message_text(sender, edit_id, 
+            f'Failed to save: `{msg_link}`\n\nError: {str(e)}\n\n'
+            'Make sure your userbot account is joined to the channel/group.'
+        )
 
 async def get_bulk_msg(userbot, client, sender, msg_link, i):
     x = await client.send_message(sender, "Processing!")

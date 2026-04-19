@@ -1,19 +1,15 @@
-#Github.com/Vasusen-code - FINAL FIXED VERSION
+# FINAL FIXED __init__.py for Nil-132/Save-r
 
-print("🚀 main/__init__.py is being executed by Render!")
+print("🚀 main/__init__.py started")
 
-import asyncio, sys
+import asyncio
+import sys
 from pyrogram import Client
 from telethon.sync import TelegramClient
 from telethon.errors import FloodWaitError
 from decouple import config
 
-print("✅ All imports successful")
-
-# This 'bot' variable is required by main/__main__.py
-bot = None
-
-# Load environment variables
+# Load config
 try:
     API_ID = config("API_ID", cast=int)
     API_HASH = config("API_HASH")
@@ -21,61 +17,45 @@ try:
     SESSION = config("SESSION")
     FORCESUB = config("FORCESUB", default=None)
     AUTH = config("AUTH", default=None, cast=int)
-    print("✅ Environment variables loaded successfully")
-    print(f"   API_ID: {API_ID} | SESSION length: {len(SESSION) if SESSION else 0}")
+    print("✅ Config loaded")
 except Exception as e:
-    print(f"❌ ERROR loading environment variables: {e}")
+    print(f"❌ Config error: {e}")
     sys.exit(1)
 
-# Telethon Bot (this is the 'bot' that __main__.py imports)
-async def start_telethon_bot():
-    print("🔄 Starting Telethon Bot...")
+# Telethon Bot - define 'bot' at module level
+bot = None
+
+async def start_bot():
     global bot
+    print("🔄 Starting Telethon Bot...")
     bot = TelegramClient('bot', API_ID, API_HASH)
     while True:
         try:
             await bot.start(bot_token=BOT_TOKEN)
-            print("✅ Telethon Bot started successfully!")
+            print("✅ Telethon Bot started!")
             return bot
         except FloodWaitError as e:
             wait = e.seconds + 10
-            print(f"⏳ FloodWaitError: Waiting {wait} seconds...")
+            print(f"⏳ Flood wait {wait}s...")
             await asyncio.sleep(wait)
         except Exception as e:
-            print(f"❌ Telethon start error: {e}")
+            print(f"❌ Telethon error: {e}")
             await asyncio.sleep(30)
 
+# Run startup
 loop = asyncio.get_event_loop()
-bot = loop.run_until_complete(start_telethon_bot())
+bot = loop.run_until_complete(start_bot())
 
 # Pyrogram Userbot
-print("🔄 Starting Pyrogram Userbot...")
-userbot = Client(
-    "saverestricted",
-    session_string=SESSION,
-    api_id=API_ID,
-    api_hash=API_HASH
-)
-try:
-    userbot.start()
-    print("✅ Pyrogram Userbot started successfully!")
-except Exception as e:
-    print(f"❌ Userbot Error: {e}")
-    sys.exit(1)
+print("🔄 Starting Userbot...")
+userbot = Client("saverestricted", session_string=SESSION, api_id=API_ID, api_hash=API_HASH)
+userbot.start()
+print("✅ Userbot started!")
 
-# Pyrogram Bot Client
-print("🔄 Starting Pyrogram Bot Client...")
-Bot = Client(
-    "SaveRestricted",
-    bot_token=BOT_TOKEN,
-    api_id=API_ID,
-    api_hash=API_HASH
-)
-try:
-    Bot.start()
-    print("✅ Pyrogram Bot started successfully!")
-except Exception as e:
-    print(f"❌ Pyrogram Bot Error: {e}")
-    sys.exit(1)
+# Pyrogram Bot
+print("🔄 Starting Pyrogram Bot...")
+Bot = Client("SaveRestricted", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
+Bot.start()
+print("✅ Pyrogram Bot started!")
 
-print("🚀 ALL CLIENTS STARTED SUCCESSFULLY! Bot is now online.")
+print("🚀 ALL CLIENTS READY! Bot is online.")

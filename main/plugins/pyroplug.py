@@ -7,7 +7,7 @@ from main.plugins.progress import progress_for_pyrogram
 from main.plugins.helpers import screenshot
 
 from pyrogram import Client, filters
-from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
+from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid, UserNotParticipant
 from pyrogram.enums import MessageMediaType
 from ethon.pyfunc import video_metadata
 from ethon.telefunc import fast_upload
@@ -18,7 +18,7 @@ def thumbnail(sender):
     if os.path.exists(f'{sender}.jpg'):
         return f'{sender}.jpg'
     else:
-         return None
+        return None
 
 async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
     """ userbot: PyrogramUserBot
@@ -29,29 +29,34 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         msg_link = msg_link.split("?single")[0]
     
     msg_id = int(msg_link.split("/")[-1]) + int(i)
-    height, width, duration, thumb_path = 90, 90, 0, None
 
-    # FIXED LINK PARSING
-    if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
+    # Determine if it's PRIVATE/RESTRICTED or PUBLIC
+    is_private = 't.me/c/' in msg_link or 't.me/b/' in msg_link
+
+    if is_private:
         if 't.me/b/' in msg_link:
             chat = str(msg_link.split("/")[-2])
         else:
             chat = int('-100' + str(msg_link.split("/")[-2]))
+        print(f"🔒 Private link detected → using userbot download path for chat: {chat}")
     else:
-        # Public channel with username
+        # Public username link (t.me/username/123)
         chat = msg_link.split("t.me")[1].split("/")[1]
+        print(f"🌍 Public link detected → using fast copy for chat: {chat}")
 
     edit = await client.edit_message_text(sender, edit_id, "Cloning...")
 
-    # === MAIN FIX: Try copy_message first (works perfectly for public videos) ===
-    try:
-        await client.copy_message(sender, chat, msg_id)
-        await edit.delete()
-        return
-    except Exception as e:
-        print(f"Copy failed for {msg_link}, trying download method: {e}")
+    # ==================== PUBLIC CHANNELS (fast copy) ====================
+    if not is_private:
+        try:
+            await client.copy_message(sender, chat, msg_id)
+            await edit.delete()
+            return
+        except Exception as e:
+            print(f"Copy failed (public): {e}")
 
-    # === Fallback: Download + Upload (for restricted content) ===
+    # ==================== PRIVATE / RESTRICTED CHANNELS ====================
+    # Use userbot to download + re-upload (required for restricted content)
     try:
         msg = await userbot.get_messages(chat, msg_id)
 
@@ -64,7 +69,7 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
             await edit.delete()
             return
 
-        edit = await client.edit_message_text(sender, edit_id, "Trying to Download.")
+        edit = await client.edit_message_text(sender, edit_id, "Trying to Download...")
         file = await userbot.download_media(
             msg,
             progress=progress_for_pyrogram,
@@ -124,8 +129,8 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
             pass
         await edit.delete()
 
-    except (ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid):
-        await client.edit_message_text(sender, edit_id, "Have you joined the channel?")
+    except (ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, UserNotParticipant):
+        await client.edit_message_text(sender, edit_id, "❌ You / your userbot must join the channel first!")
         return
 
     except PeerIdInvalid:
@@ -137,7 +142,7 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         return await get_msg(userbot, client, bot, sender, edit_id, new_link, i)
 
     except Exception as e:
-        print(f"Final error: {e}")
+        print(f"Private channel error: {e}")
         await client.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
         try:
             os.remove(file)

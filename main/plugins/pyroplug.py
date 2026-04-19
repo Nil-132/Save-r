@@ -30,7 +30,7 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
     
     msg_id = int(msg_link.split("/")[-1]) + int(i)
 
-    # Determine if it's PRIVATE/RESTRICTED or PUBLIC
+    # Detect private vs public
     is_private = 't.me/c/' in msg_link or 't.me/b/' in msg_link
 
     if is_private:
@@ -38,28 +38,29 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
             chat = str(msg_link.split("/")[-2])
         else:
             chat = int('-100' + str(msg_link.split("/")[-2]))
-        print(f"🔒 Private link detected → using userbot download path for chat: {chat}")
     else:
-        # Public username link (t.me/username/123)
         chat = msg_link.split("t.me")[1].split("/")[1]
-        print(f"🌍 Public link detected → using fast copy for chat: {chat}")
 
     edit = await client.edit_message_text(sender, edit_id, "Cloning...")
 
-    # ==================== PUBLIC CHANNELS (fast copy) ====================
-    if not is_private:
-        try:
+    # MAIN FIX: Use copy_message (fastest & most reliable)
+    try:
+        if is_private:
+            # Private/Restricted → use userbot (has full access)
+            await userbot.copy_message(sender, chat, msg_id)
+        else:
+            # Public → use bot client (faster)
             await client.copy_message(sender, chat, msg_id)
-            await edit.delete()
-            return
-        except Exception as e:
-            print(f"Copy failed (public): {e}")
+        
+        await edit.delete()
+        return
 
-    # ==================== PRIVATE / RESTRICTED CHANNELS ====================
-    # Use userbot to download + re-upload (required for restricted content)
+    except Exception as e:
+        print(f"Copy failed for {msg_link} → falling back to download: {e}")
+
+    # Fallback (old method) only if copy fails
     try:
         msg = await userbot.get_messages(chat, msg_id)
-
         if msg.empty:
             new_link = f't.me/b/{chat}/{msg_id}'
             return await get_msg(userbot, client, bot, sender, edit_id, new_link, i)
@@ -79,7 +80,6 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         await edit.edit('Preparing to Upload!')
         caption = msg.caption if msg.caption else None
 
-        # Video Note
         if msg.media == MessageMediaType.VIDEO_NOTE:
             round_message = True
             data = video_metadata(file)
@@ -93,8 +93,6 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
                 thumb=thumb_path, progress=progress_for_pyrogram,
                 progress_args=(client, '**UPLOADING:**\n', edit, time.time())
             )
-
-        # Regular Video
         elif msg.media == MessageMediaType.VIDEO:
             data = video_metadata(file)
             height, width, duration = data["height"], data["width"], data["duration"]
@@ -107,12 +105,8 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
                 height=height, width=width, duration=duration, thumb=thumb_path,
                 progress=progress_for_pyrogram, progress_args=(client, '**UPLOADING:**\n', edit, time.time())
             )
-
-        # Photo
         elif msg.media == MessageMediaType.PHOTO:
             await bot.send_file(sender, file, caption=caption)
-
-        # Other files
         else:
             thumb_path = thumbnail(sender)
             await client.send_document(
@@ -120,7 +114,6 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
                 progress=progress_for_pyrogram, progress_args=(client, '**UPLOADING:**\n', edit, time.time())
             )
 
-        # Cleanup
         try:
             os.remove(file)
             if os.path.isfile(file):
@@ -130,7 +123,7 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         await edit.delete()
 
     except (ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, UserNotParticipant):
-        await client.edit_message_text(sender, edit_id, "❌ You / your userbot must join the channel first!")
+        await client.edit_message_text(sender, edit_id, "❌ You / your userbot must join the channel/group first!")
         return
 
     except PeerIdInvalid:
@@ -142,7 +135,7 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         return await get_msg(userbot, client, bot, sender, edit_id, new_link, i)
 
     except Exception as e:
-        print(f"Private channel error: {e}")
+        print(f"Final error: {e}")
         await client.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
         try:
             os.remove(file)

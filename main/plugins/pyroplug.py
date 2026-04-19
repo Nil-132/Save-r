@@ -19,9 +19,7 @@ def thumbnail(sender):
         return f'{sender}.jpg'
     else:
          return None
-      
 async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
-    
     """ userbot: PyrogramUserBot
     client: PyrogramBotClient
     bot: TelethonBotClient """
@@ -31,17 +29,26 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
     round_message = False
     if "?single" in msg_link:
         msg_link = msg_link.split("?single")[0]
+    
     msg_id = int(msg_link.split("/")[-1]) + int(i)
     height, width, duration, thumb_path = 90, 90, 0, None
-    if 't.me/c/' or 't.me/b/' in msg_link:
+
+    # FIXED: Proper detection of public username vs private numeric ID
+    if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
         if 't.me/b/' in msg_link:
-            chat = str(msg_link.split("/")[-2])
+            chat = str(msg_link.split("/")[-2])          # username for b/ links
         else:
-            chat = int('-100' + str(msg_link.split("/")[-2]))
-        file = ""
-        try:
-            msg = await userbot.get_messages(chat, msg_id)
-            if msg.media:
+            chat = int('-100' + str(msg_link.split("/")[-2]))  # numeric ID for c/ links
+    else:
+        # Public channel with username (t.me/username/123)
+        chat = msg_link.split("t.me")[1].split("/")[1]
+
+    file = ""
+    try:
+        msg = await userbot.get_messages(chat, msg_id)
+        # ... (rest of your original function stays exactly the same from here)
+        # Keep everything after this try: block unchanged      
+         if msg.media:
                 if msg.media==MessageMediaType.WEB_PAGE:
                     edit = await client.edit_message_text(sender, edit_id, "Cloning.")
                     await client.send_message(sender, msg.text.markdown)

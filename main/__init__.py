@@ -1,4 +1,4 @@
-#Github.com/Vasusen-code - FINAL STABLE VERSION
+#Github.com/Vasusen-code - FINAL STABLE VERSION FOR RENDER
 
 print("🚀 main/__init__.py is being executed by Render!")
 
@@ -9,6 +9,9 @@ from telethon.errors import FloodWaitError
 from decouple import config
 
 print("✅ All imports successful")
+
+# Define 'bot' early so main/__main__.py can import it
+bot = None
 
 # Load environment variables
 try:
@@ -24,9 +27,10 @@ except Exception as e:
     print(f"❌ ERROR loading environment variables: {e}")
     sys.exit(1)
 
-# Telethon Bot (this 'bot' variable is required by main/__main__.py)
+# Telethon Bot (with flood wait handling)
 async def start_telethon_bot():
     print("🔄 Starting Telethon Bot...")
+    global bot
     bot = TelegramClient('bot', API_ID, API_HASH)
     while True:
         try:
@@ -42,7 +46,7 @@ async def start_telethon_bot():
             await asyncio.sleep(30)
 
 loop = asyncio.get_event_loop()
-bot = loop.run_until_complete(start_telethon_bot())   # ← this is the 'bot' that __main__.py imports
+bot = loop.run_until_complete(start_telethon_bot())
 
 # Pyrogram Userbot
 print("🔄 Starting Pyrogram Userbot...")

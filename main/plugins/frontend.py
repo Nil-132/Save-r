@@ -29,10 +29,14 @@ async def clone(event):
             return
     except TypeError:
         return
-    s, r = await force_sub(event.client, fs, event.sender_id, ft)
-    if s == True:
-        await event.reply(r)
-        return
+
+    # Only check forcesub if FORCESUB is set
+    if fs:
+        s, r = await force_sub(event.client, fs, event.sender_id, ft)
+        if s == True:
+            await event.reply(r)
+            return
+
     edit = await event.reply("Processing!")
     try:
         if 't.me/+' in link:
@@ -46,4 +50,3 @@ async def clone(event):
     except Exception as e:
         print(e)
         await Drone.send_message(event.sender_id, f"An error occurred during cloning of `{link}`\n\n**Error:** {str(e)}")
-    

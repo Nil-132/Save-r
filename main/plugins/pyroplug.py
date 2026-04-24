@@ -1,4 +1,4 @@
-# main/plugins/pyroplug.py - FULLY FIXED with bot link support
+# main/plugins/pyroplug.py - IMPROVED RESOLVE with resolve_peer
 import asyncio
 import os
 import re
@@ -16,21 +16,50 @@ def thumbnail(sender):
         return f'{sender}.jpg'
     return None
 
+
 async def resolve_chat_id(userbot, chat_id_str):
-    """Try to resolve a numeric private chat ID to a valid Pyrogram chat object."""
+    """
+    Robustly resolves a private numeric chat ID (from t.me/c/ links).
+    Tries multiple formats: -100 prefix (supergroup), raw int, - prefix (old group),
+    and finally resolve_peer.
+    """
+    # Keep only digits
     clean_id = re.sub(r'[^0-9]', '', chat_id_str)
     if not clean_id:
         raise ValueError("Invalid chat ID")
-    
-    attempts = []
-    # Try raw integer, then -100 prefix (supergroups), then - prefix (normal groups)
-    for prefix in ("", "-100", "-"):
-        try:
-            cid = int(f"{prefix}{clean_id}")
-            return await userbot.get_chat(cid)
-        except Exception as e:
-            attempts.append(f"{prefix}:{e}")
-    raise PeerIdInvalid(f"Could not resolve chat ID {clean_id}. Attempts: {attempts}")
+
+    errors_list = []
+
+    # Attempt 1: -100 prefix (the most common for private channels/supergroups)
+    try:
+        return await userbot.get_chat(int(f"-100{clean_id}"))
+    except Exception as e:
+        errors_list.append(f"-100:{e}")
+
+    # Attempt 2: raw positive integer (almost never works, but try)
+    try:
+        return await userbot.get_chat(int(clean_id))
+    except Exception as e:
+        errors_list.append(f"raw:{e}")
+
+    # Attempt 3: - prefix (old standard groups)
+    try:
+        return await userbot.get_chat(int(f"-{clean_id}"))
+    except Exception as e:
+        errors_list.append(f"-:{e}")
+
+    # Attempt 4: Use resolve_peer (works even if chat is not in dialog list)
+    try:
+        # resolve_peer accepts string like "-100123456789"
+        peer = await userbot.resolve_peer(f"-100{clean_id}")
+        return await userbot.get_chat(peer)
+    except Exception as e:
+        errors_list.append(f"resolve_peer:{e}")
+
+    raise PeerIdInvalid(
+        f"Could not resolve chat ID {clean_id}.\nAttempts: {errors_list}"
+    )
+
 
 async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
     if "?single" in msg_link:
@@ -38,13 +67,12 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
 
     edit = await client.edit_message_text(sender, edit_id, "🔍 Parsing link...")
 
-    # Split link into parts
     parts = msg_link.split('/')
-    # Extract chat identifier
+    # Identify chat identifier
     if 't.me/b/' in msg_link:
         # Bot link: t.me/b/bot_username/message_id
         chat_id_str = parts[4]          # bot username
-        is_private = False              # treat as public username for get_chat
+        is_private = False              # treat as public username
     elif 't.me/c/' in msg_link:
         # Private channel: t.me/c/chat_id/message_id
         chat_id_str = parts[4]          # numeric ID
@@ -54,14 +82,12 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         chat_id_str = parts[3]          # username
         is_private = False
 
-    # Message ID is always the last part + offset
     msg_id = int(parts[-1]) + int(i)
 
     try:
         if is_private and 't.me/b/' not in msg_link:
             chat = await resolve_chat_id(userbot, chat_id_str)
         else:
-            # Public username or bot username
             chat = await userbot.get_chat(chat_id_str)
 
         await edit.edit("📥 Fetching message...")
@@ -70,7 +96,7 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
             await edit.edit("❌ Message not found (may be deleted).")
             return
 
-        # Fast forward: try copy first
+        # Try fast copy first
         try:
             await userbot.copy_message(sender, chat.id, msg_id)
             await edit.delete()
@@ -81,14 +107,13 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
             await edit.edit(f"⏳ Flood wait: {e.value} seconds.")
             return
 
-        # Download & re-upload (bypasses forward restriction)
+        # If no media, just send text
         if not message.media:
-            # Text-only message
             await client.send_message(sender, message.text or "")
             await edit.delete()
             return
 
-        # Determine file extension
+        # Determine extension
         ext = ""
         if message.photo:
             ext = ".jpg"
@@ -110,7 +135,6 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         await edit.edit("📤 Uploading...")
         caption = message.caption or message.text or ""
 
-        # Send based on media type
         if message.media == MessageMediaType.PHOTO:
             await client.send_photo(sender, file_path, caption=caption)
         elif message.media == MessageMediaType.VIDEO:
@@ -133,6 +157,7 @@ async def get_msg(userbot, client, bot, sender, edit_id, msg_link, i):
         await edit.edit(f"❌ Access denied: {type(e).__name__}. Ensure userbot is a member.")
     except Exception as e:
         await edit.edit(f"❌ Unexpected error: {type(e).__name__}: {str(e)}")
+
 
 async def get_bulk_msg(userbot, client, sender, msg_link, i):
     x = await client.send_message(sender, "⏳ Processing...")
